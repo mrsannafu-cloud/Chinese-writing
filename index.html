@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>作文漫畫大冒險 - 小學中文寫作四格漫畫生成器</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & React DOM CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Babel Compiler for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @keyframes spinSlow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .animate-spin-slow {
+      animation: spinSlow 8s linear infinite;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-pink-50 via-purple-50 to-sky-50 text-slate-800 font-sans p-3 md:p-6 select-none min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // Preset HK EDB / TSA Essay Prompts
+    const PRESET_PROMPTS = [
+      { id: 1, title: '《一件難忘的趣事》', level: 'P3', hint: '注意事情的起因、經過和結果，加入人物的表情和心理描寫。' },
+      { id: 2, title: '《一次誠實的經歷》', level: 'P3', hint: '描述犯錯時的猶豫，以及說出真話後的釋懷感受。' },
+      { id: 3, title: '《公園裡的奇遇》', level: 'P4', hint: '發揮豐富想像力，運用感官描寫（視覺、聽覺）令故事更生動。' },
+      { id: 4, title: '《一次意外的教訓》', level: 'P4', hint: '重點寫出從這次教訓中所明白的道理（反思與成長）。' },
+      { id: 5, title: '《如果我有特異功能》', level: 'P5', hint: '大膽構思特異功能的用途，並說明如何用它來幫助他人。' },
+      { id: 6, title: '《下雨天的一幕》', level: 'P5', hint: '細緻描寫雨景，並透過事件表達出溫暖或感動的情感。' }
+    ];
+
+    // Vocabulary Bank tailored to HK Primary Chinese Writing
+    const VOCAB_BANK = {
+      P3: {
+        idioms: ['興高采烈', '歡天喜地', '迫不及待', '自言自語', '五顏六色', '眉開眼笑'],
+        adjectives: ['天真無邪', '活潑可愛', '心慌意亂', '面紅耳赤', '香氣撲鼻', '熱鬧非凡'],
+        connectors: ['首先……接着……', '雖然……但是……', '因為……所以……', '一邊……一邊……'],
+        verbs: ['手舞足蹈', '手忙腳亂', '聚精會神', '大聲疾呼', '奔跑衝刺']
+      },
+      P4: {
+        idioms: ['恍然大悟', '恍如隔世', '無精打采', '七上八下', '爭先恐後', '千鈞一髮'],
+        adjectives: ['深感愧疚', '滿懷期待', '垂頭喪氣', '心急如焚', '膽戰心驚', '風和日麗'],
+        connectors: ['不僅……而且……', '即使……也……', '與其……不如……', '只要……就……'],
+        verbs: ['目瞪口呆', '手足無措', '痛定思痛', '娓娓道來', '細心觀察']
+      },
+      P5: {
+        idioms: ['刻骨銘心', '受益匪淺', '千真萬確', '無可奈何', '雨過天晴', '銘記於心'],
+        adjectives: ['深感後悔', '百感交集', '意想不到', '煥然一新', '如釋重負', '嚴肅認真'],
+        connectors: ['寧可……也不……', '既……又……', '尚且……何況……', '總之……'],
+        verbs: ['深思熟慮', '反覆反省', '娓娓動聽', '推己及人', '感同身受']
+      }
+    };
+
+    // Pre-baked Story Templates for Dynamic Refresh
+    const STORY_VARIATIONS = {
+      '《一件難忘的趣事》': [
+        {
+          panels: [
+            { title: '起因：放學路上', desc: '小明和小華在公園看見一隻打噴嚏的小貓。', bg: 'bg-pink-100', icon: '🐱', detail: '陽光明媚的午後，小貓突然「阿啾」一聲！' },
+            { title: '經過：模仿貓叫', desc: '小明試着模仿貓叫，結果小貓追着他的鞋帶不放。', bg: 'bg-yellow-100', icon: '👟', detail: '小貓把小明的鞋帶當成了小魚乾玩具。' },
+            { title: '高潮：趣事連連', desc: '小明慌忙繞圈跑，鞋帶鬆開了，小貓和自己都摔了個滾地葫蘆。', bg: 'bg-green-100', icon: '🌀', detail: '兩人一貓笑成一團，路人都忍不住停下腳步。' },
+            { title: '結局：溫馨回憶', desc: '雖然滿身泥巴，但他們收穫了一下午的歡笑與友情。', bg: 'bg-blue-100', icon: '✨', detail: '這成了小明童年裡最難忘、最逗趣的一天。' }
+          ]
+        },
+        {
+          panels: [
+            { title: '起因：廚房探險', desc: '媽媽在做蛋糕，小明偷偷想拿一塊麵粉當雪花玩。', bg: 'bg-purple-100', icon: '🎂', detail: '廚房裏飄着陣陣甜甜的奶油香味。' },
+            { title: '經過：花臉大貓', desc: '不小心打破了粉袋，小明變成了「大白花臉」。', bg: 'bg-rose-100', icon: '🎭', detail: '連眉毛和睫毛都染成了白色！' },
+            { title: '高潮：鏡子驚喜', desc: '小明走到鏡子前，被自己的模樣嚇了一跳，笑得直不起腰。', bg: 'bg-amber-100', icon: '🪞', detail: '媽媽看到後也忍不住哈哈大笑。' },
+            { title: '結局：甜美記憶', desc: '最後大家一起吃蛋糕，這是一次滑稽又溫馨的體驗。', bg: 'bg-sky-100', icon: '🍰', detail: '小明把這幅「花臉照」貼在了日記本裏。' }
+          ]
+        }
+      ],
+      '《一次誠實的經歷》': [
+        {
+          panels: [
+            { title: '起因：打碎花瓶', desc: '小明在客廳踢球，不小心把媽媽最愛的花瓶打碎了。', bg: 'bg-red-100', icon: '🏺', detail: '「啪啦」一聲，花瓶碎了一地，小明嚇得心跳加速。' },
+            { title: '經過：內心掙扎', desc: '小明想把碎片藏起來，但心裏像揣着一隻小兔子，不安極了。', bg: 'bg-orange-100', icon: '🐰', detail: '到底要坦白，還是假裝不知道呢？' },
+            { title: '高潮：勇敢承認', desc: '媽媽回家後，小明低着頭，鼓起勇氣主動道歉。', bg: 'bg-yellow-100', icon: '🙇‍♂️', detail: '「媽媽，對不起，是我不小心打破的。」' },
+            { title: '結局：獲得原諒', desc: '媽媽沒有責怪他，反而讚賞他的誠實，小明如釋重負。', bg: 'bg-emerald-100', icon: '💖', detail: '誠實讓小明懂得了責任與勇氣的意義。' }
+          ]
+        }
+      ]
+    };
+
+    function App() {
+      const [selectedLevel, setSelectedLevel] = useState('P3');
+      const [comicMode, setComicMode] = useState('4panel'); 
+      const [currentPrompt, setCurrentPrompt] = useState('《一件難忘的趣事》');
+      const [customPromptInput, setCustomPromptInput] = useState('');
+      const [variationIndex, setVariationIndex] = useState(0);
+      const [showVocabModal, setShowVocabModal] = useState(false);
+      const [userEnding, setUserEnding] = useState('');
+      const [savedEndingSubmitted, setSavedEndingSubmitted] = useState(false);
+      const [stickerReward, setStickerReward] = useState('');
+
+      useEffect(() => {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      });
+
+      const getCurrentPanels = () => {
+        const templateList = STORY_VARIATIONS[currentPrompt] || STORY_VARIATIONS['《一件難忘的趣事》'];
+        const currentVariation = templateList[variationIndex % templateList.length];
+        return currentVariation.panels;
+      };
+
+      const activePanels = getCurrentPanels();
+
+      const handleSelectPrompt = (promptTitle) => {
+        setCurrentPrompt(promptTitle);
+        setCustomPromptInput('');
+        setVariationIndex(0);
+        setUserEnding('');
+        setSavedEndingSubmitted(false);
+      };
+
+      const handleCustomPromptSubmit = (e) => {
+        e.preventDefault();
+        if (customPromptInput.trim()) {
+          setCurrentPrompt(`《${customPromptInput.trim()}》`);
+          setVariationIndex(0);
+          setUserEnding('');
+          setSavedEndingSubmitted(false);
+        }
+      };
+
+      const handleRefreshStory = () => {
+        setVariationIndex((prev) => prev + 1);
+        setUserEnding('');
+        setSavedEndingSubmitted(false);
+      };
+
+      const handleSpeak = (text) => {
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = 'zh-HK';
+          utterance.rate = 0.9;
+          window.speechSynthesis.speak(utterance);
+        }
+      };
+
+      const handleEndingSubmit = () => {
+        if (userEnding.trim().length >= 5) {
+          setSavedEndingSubmitted(true);
+          const stickers = ['🌟 妙筆生花獎', '🏆 創意小作家', '🎉 超凡想像獎', '🎨 故事大師獎'];
+          setStickerReward(stickers[Math.floor(Math.random() * stickers.length)]);
+        }
+      };
+
+      return (
+        <div className="max-w-7xl mx-auto">
+          {/* Top Kawaii Header */}
+          <header className="mb-6 bg-white/90 backdrop-blur-md rounded-3xl p-4 md:p-5 shadow-lg border-4 border-pink-200 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 bg-pink-400 text-white rounded-2xl flex items-center justify-center text-3xl shadow-inner transform -rotate-3 hover:rotate-0 transition-transform">
+                🐱🎨
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl md:text-3xl font-extrabold text-pink-600 tracking-wide">
+                    作文漫畫大冒險
+                  </h1>
+                  <span className="bg-amber-300 text-amber-900 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
+                    HK EDB / TSA 專用
+                  </span>
+                </div>
+                <p className="text-xs md:text-sm text-slate-500 font-medium">
+                  小三至小五中文創意寫作・自動四格漫畫啟發平台
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="hidden lg:flex items-center gap-2 bg-pink-50 border-2 border-pink-200 px-3 py-1.5 rounded-2xl text-xs font-bold text-pink-700">
+                <span className="text-xl">🌸</span>
+                <span>「加油小作家！用圖像啟發妙筆靈感吧！」</span>
+              </div>
+              <button
+                onClick={() => setShowVocabModal(true)}
+                className="flex items-center gap-2 bg-gradient-to-r from-purple-400 to-indigo-500 hover:from-purple-500 hover:to-indigo-600 text-white font-bold px-4 py-2.5 rounded-2xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0 text-sm"
+              >
+                <span>📖 可用詞彙庫</span>
+              </button>
+            </div>
+          </header>
+
+          {/* Main Grid Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* LEFT SIDEBAR */}
+            <div className="lg:col-span-4 flex flex-col gap-5">
+              
+              {/* Grade Selection */}
+              <div className="bg-white/90 rounded-3xl p-5 shadow-md border-3 border-sky-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xl">🎒</span>
+                  <h2 className="text-lg font-bold text-sky-700">選擇學習年級</h2>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {['P3', 'P4', 'P5'].map((lvl) => (
+                    <button
+                      key={lvl}
+                      onClick={() => setSelectedLevel(lvl)}
+                      className={`py-2.5 rounded-2xl font-black text-sm transition-all border-2 ${
+                        selectedLevel === lvl
+                          ? 'bg-sky-400 text-white border-sky-500 shadow-md scale-105'
+                          : 'bg-sky-50 text-sky-600 border-sky-100 hover:bg-sky-100'
+                      }`}
+                    >
+                      {lvl === 'P3' ? '小三 (P3)' : lvl === 'P4' ? '小四 (P4)' : '小五 (P5)'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Mode Selection */}
+              <div className="bg-white/90 rounded-3xl p-5 shadow-md border-3 border-purple-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xl">🖼️</span>
+                  <h2 className="text-lg font-bold text-purple-700">漫畫模式選擇</h2>
+                </div>
+                <div className="flex flex-col gap-2.5">
+                  <button
+                    onClick={() => setComicMode('4panel')}
+                    className={`flex items-start gap-3 p-3.5 rounded-2xl text-left border-2 transition-all ${
+                      comicMode === '4panel'
+                        ? 'bg-purple-100 border-purple-400 text-purple-900 shadow-sm'
+                        : 'bg-slate-50 border-slate-100 text-slate-600 hover:bg-purple-50'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-xl text-lg ${comicMode === '4panel' ? 'bg-purple-500 text-white' : 'bg-slate-200'}`}>
+                      ✨
+                    </div>
+                    <div>
+                      <div className="font-bold text-sm">四幅圖片 (完整故事)</div>
+                      <div className="text-xs text-slate-500 mt-0.5">顯示完整「起、承、轉、合」故事脈絡描述</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => setComicMode('3panel')}
+                    className={`flex items-start gap-3 p-3.5 rounded-2xl text-left border-2 transition-all ${
+                      comicMode === '3panel'
+                        ? 'bg-amber-100 border-amber-400 text-amber-900 shadow-sm'
+                        : 'bg-slate-50 border-slate-100 text-slate-600 hover:bg-amber-50'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-xl text-lg ${comicMode === '3panel' ? 'bg-amber-500 text-white' : 'bg-slate-200'}`}>
+                      ❓
+                    </div>
+                    <div>
+                      <div className="font-bold text-sm">三幅圖片 (謎之結局挑戰)</div>
+                      <div className="text-xs text-slate-500 mt-0.5">提供前三格情節，第四格顯現問號，鼓勵自主構思結局</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Prompts Tag List */}
+              <div className="bg-white/90 rounded-3xl p-5 shadow-md border-3 border-pink-200">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🏷️</span>
+                    <h2 className="text-lg font-bold text-pink-700">香港歷屆熱門題目</h2>
+                  </div>
+                  <span className="text-xs bg-pink-100 text-pink-600 font-bold px-2 py-0.5 rounded-full">
+                    {selectedLevel} 精選
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {PRESET_PROMPTS.filter((p) => p.level === selectedLevel || selectedLevel === 'P3').map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => handleSelectPrompt(p.title)}
+                      className={`text-xs font-bold px-3 py-2 rounded-xl border-2 transition-all flex items-center gap-1.5 ${
+                        currentPrompt === p.title
+                          ? 'bg-pink-500 text-white border-pink-600 shadow-md scale-105'
+                          : 'bg-pink-50 text-pink-700 border-pink-100 hover:bg-pink-100'
+                      }`}
+                    >
+                      <span>🏷️</span>
+                      <span>{p.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* EDB Writing Tip */}
+              <div className="bg-amber-50 rounded-3xl p-5 border-3 border-amber-200 text-amber-900 shadow-sm">
+                <div className="flex items-center gap-2 font-bold text-sm mb-2 text-amber-800">
+                  <span className="text-lg">💡</span>
+                  <span>HK EDB 寫作錦囊</span>
+                </div>
+                <p className="text-xs leading-relaxed text-amber-800">
+                  {PRESET_PROMPTS.find((p) => p.title === currentPrompt)?.hint ||
+                    '構思寫作時，試着加入五感（視覺、聽覺、觸覺）及人物的心情變化，文章會更吸引人喔！'}
+                </p>
+              </div>
+
+            </div>
+
+            {/* RIGHT WORKSPACE */}
+            <div className="lg:col-span-8 flex flex-col gap-5">
+              
+              {/* Input Header */}
+              <div className="bg-white/90 rounded-3xl p-5 shadow-md border-3 border-indigo-200">
+                <form onSubmit={handleCustomPromptSubmit} className="flex flex-col md:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={customPromptInput}
+                      onChange={(e) => setCustomPromptInput(e.target.value)}
+                      placeholder={`目前選用：${currentPrompt} (可直接鍵入新題目...)`}
+                      className="w-full bg-slate-50 border-2 border-indigo-100 rounded-2xl px-4 py-3 text-sm md:text-base font-bold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all text-indigo-900 placeholder:text-slate-400"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold px-5 py-3 rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 whitespace-nowrap text-sm"
+                  >
+                    <span>✏️ 生成自訂命題</span>
+                  </button>
+                </form>
+              </div>
+
+              {/* Comic Display Section */}
+              <div className="bg-white/95 rounded-3xl p-5 shadow-xl border-4 border-pink-200 flex flex-col gap-4 relative overflow-hidden">
+                
+                <div className="flex items-center justify-between border-b-2 border-pink-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">📖</span>
+                    <div>
+                      <h2 className="text-xl font-extrabold text-pink-600">
+                        {currentPrompt}
+                      </h2>
+                      <span className="text-xs text-slate-400 font-medium">
+                        模式：{comicMode === '4panel' ? '完整四格故事' : '三格故事 + 謎之結局'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Comic Panels Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-2">
+                  {activePanels.slice(0, comicMode === '3panel' ? 3 : 4).map((panel, idx) => (
+                    <div
+                      key={idx}
+                      className={`${panel.bg} rounded-3xl p-4 border-3 border-white shadow-md hover:shadow-lg transition-all flex flex-col justify-between min-h-[220px] relative group overflow-hidden`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="bg-white/80 backdrop-blur-sm text-slate-700 text-xs font-black px-2.5 py-1 rounded-full border border-slate-200">
+                          第 {idx + 1} 格：{panel.title}
+                        </span>
+                        <button
+                          onClick={() => handleSpeak(`${panel.title}。${panel.desc}`)}
+                          className="p-1.5 bg-white/70 hover:bg-white rounded-full text-slate-600 transition-colors shadow-sm text-xs"
+                          title="朗讀分鏡"
+                        >
+                          🔊
+                        </button>
+                      </div>
+
+                      <div className="flex-1 flex flex-col items-center justify-center my-2 text-center relative">
+                        <div className="text-6xl mb-2 transform group-hover:scale-110 transition-transform">
+                          {panel.icon}
+                        </div>
+                        <div className="bg-white/90 backdrop-blur-sm px-3 py-2 rounded-2xl border-2 border-slate-200 text-xs font-bold text-slate-800 shadow-sm max-w-[90%]">
+                          {panel.desc}
+                        </div>
+                      </div>
+
+                      <div className="mt-2 pt-2 border-t border-slate-900/10 text-[11px] font-medium text-slate-600 flex items-center gap-1">
+                        <span className="text-xs">💡</span>
+                        <span className="truncate">{panel.detail}</span>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* 3-Panel Mystery Frame */}
+                  {comicMode === '3panel' && (
+                    <div className="bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 rounded-3xl p-4 border-3 border-dashed border-purple-300 shadow-md flex flex-col justify-between min-h-[220px] relative overflow-hidden">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="bg-purple-500 text-white text-xs font-black px-2.5 py-1 rounded-full shadow-sm">
+                          第 4 格：❓ 謎之結局由你寫！
+                        </span>
+                      </div>
+
+                      <div className="flex-1 flex flex-col items-center justify-center text-center p-2">
+                        <div className="text-6xl mb-2 animate-bounce">
+                          ❓
+                        </div>
+                        <p className="text-xs font-bold text-purple-800 bg-white/80 px-3 py-1.5 rounded-2xl border border-purple-200">
+                          前三格鋪排好了，故事最後會怎樣發展呢？
+                        </p>
+                      </div>
+
+                      <div className="text-[11px] font-bold text-purple-600 text-center">
+                        請在下方編輯框寫下你的創意結局！
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Student Writing Box */}
+                {comicMode === '3panel' && (
+                  <div className="bg-purple-50 border-2 border-purple-200 rounded-2xl p-4 mt-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-sm font-bold text-purple-800">
+                        <span>✏️ 你的原創第四格結局 (約20-50字)</span>
+                      </div>
+                      {savedEndingSubmitted && (
+                        <span className="bg-emerald-500 text-white text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                          ✓ 已完成挑戰
+                        </span>
+                      )}
+                    </div>
+
+                    <textarea
+                      value={userEnding}
+                      onChange={(e) => {
+                        setUserEnding(e.target.value);
+                        setSavedEndingSubmitted(false);
+                      }}
+                      placeholder="例如：小明和小華相視一笑，決定以後每天放學都來照顧這隻可愛的小貓……"
+                      className="w-full h-20 p-3 bg-white border border-purple-200 rounded-xl text-xs md:text-sm text-slate-800 focus:outline-none focus:border-purple-400 resize-none"
+                    />
+
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs text-slate-400 font-medium">
+                        字數：{userEnding.length} 字
+                      </span>
+
+                      <button
+                        onClick={handleEndingSubmit}
+                        disabled={userEnding.trim().length < 5}
+                        className="bg-purple-500 hover:bg-purple-600 disabled:opacity-40 text-white font-bold px-4 py-1.5 rounded-xl text-xs shadow-sm transition-all"
+                      >
+                        提交結局
+                      </button>
+                    </div>
+
+                    {savedEndingSubmitted && stickerReward && (
+                      <div className="mt-3 bg-white p-3 rounded-xl border border-purple-200 flex items-center gap-3">
+                        <div className="text-3xl">🏅</div>
+                        <div>
+                          <div className="text-xs font-extrabold text-purple-700">{stickerReward}</div>
+                          <p className="text-[11px] text-slate-500">太棒了！你的結局非常有創意，繼續保持寫作熱情！</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Refresh Story / Idea Button */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-pink-100">
+                  <div className="text-xs font-bold text-slate-400 flex items-center gap-1">
+                    <span>✨ 不喜歡這個故事脈絡？隨時刷新換個新意念！</span>
+                  </div>
+
+                  <button
+                    onClick={handleRefreshStory}
+                    className="w-full sm:w-auto bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 hover:from-pink-600 hover:to-amber-600 text-white font-black px-6 py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2 text-sm"
+                  >
+                    <span>🔄 刷新內容 (換個新意念)</span>
+                  </button>
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* VOCABULARY MODAL */}
+          {showVocabModal && (
+            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border-4 border-purple-200 max-h-[90vh] overflow-y-auto flex flex-col gap-4">
+                
+                <div className="flex items-center justify-between border-b-2 border-purple-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">📚</span>
+                    <div>
+                      <h3 className="text-xl font-extrabold text-purple-700">
+                        香港小學好詞好句庫 ({selectedLevel})
+                      </h3>
+                      <p className="text-xs text-slate-400">專為 EDB / TSA 作文命題設計之常用字詞</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowVocabModal(false)}
+                    className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="space-y-4 my-2">
+                  <div className="bg-pink-50 p-4 rounded-2xl border border-pink-100">
+                    <div className="font-extrabold text-sm text-pink-700 mb-2">✨ 實用成語 (提升文章文采)</div>
+                    <div className="flex flex-wrap gap-2">
+                      {VOCAB_BANK[selectedLevel].idioms.map((item, i) => (
+                        <span key={i} className="bg-white border border-pink-200 text-pink-800 text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100">
+                    <div className="font-extrabold text-sm text-amber-700 mb-2">🌈 生動形容詞與心理描寫</div>
+                    <div className="flex flex-wrap gap-2">
+                      {VOCAB_BANK[selectedLevel].adjectives.map((item, i) => (
+                        <span key={i} className="bg-white border border-amber-200 text-amber-800 text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-sky-50 p-4 rounded-2xl border border-sky-100">
+                    <div className="font-extrabold text-sm text-sky-700 mb-2">🔗 關聯詞句式 (銜接文段)</div>
+                    <div className="flex flex-wrap gap-2">
+                      {VOCAB_BANK[selectedLevel].connectors.map((item, i) => (
+                        <span key={i} className="bg-white border border-sky-200 text-sky-800 text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-purple-50 p-4 rounded-2xl border border-purple-100">
+                    <div className="font-extrabold text-sm text-purple-700 mb-2">🏃 動態描寫與動作詞語</div>
+                    <div className="flex flex-wrap gap-2">
+                      {VOCAB_BANK[selectedLevel].verbs.map((item, i) => (
+                        <span key={i} className="bg-white border border-purple-200 text-purple-800 text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex justify-end">
+                  <button
+                    onClick={() => setShowVocabModal(false)}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-5 py-2 rounded-xl text-xs shadow-md transition-all"
+                  >
+                    了解並返回寫作
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          <footer className="mt-8 text-center text-xs text-slate-400 font-medium py-4">
+            作文漫畫大冒險・符合香港教育局 (EDB) 小學中國語文科課程標準與 TSA 寫作評估設計
+          </footer>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
